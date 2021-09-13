@@ -9,4 +9,3 @@ class TicketFull {
 }
 
 module.exports = TicketFull;
-
