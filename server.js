@@ -1,114 +1,67 @@
-const tickets = require('./tickets');
-const Ticket = require('./Ticket');
-const TicketFull = require('./TicketFull');
-const getFormattedDate = require('./getFormattedDate');
+const TicketController = require('./TicketController');
 const Koa = require('koa');
 const koaBody = require('koa-body');
-const uuid = require('uuid');
+const cors = require('@koa/cors');
 const app = new Koa();
 
 app.use(koaBody());
 
-app.use(async (ctx, next) => {
-  const origin = ctx.request.get('Origin');
-  if (!origin) {
-    return await next();
-  }
-  const headers = {
-    'Access-Control-Allow-Origin': '*',
-  };
-  if (ctx.request.method !== 'OPTIONS') {
-    ctx.response.set({...headers});
-    try {
-      return await next();
-    } catch (e) {
-      e.headers = {...e.headers, ...headers};
-      throw e;
-    }
-  }
-  if (ctx.request.get('Access-Control-Request-Method')) {
-    ctx.response.set({
-      ...headers,
-      'Access-Control-Allow-Methods': 'GET, POST, PUT, DELETE, PATCH',
-    });
-    if (ctx.request.get('Access-Control-Request-Headers')) {
-      ctx.response.set('Access-Control-Allow-Headers', ctx.request.get('Access-Control-Allow-Request-Headers'));
-    }
-    ctx.response.status = 204;
-  }
-});
+app.use(cors());
 
 app.use(async ctx => {
-  const { method } = ctx.request.query;
-  const id = ctx.request.query.id;
-  const ticketIndex = tickets[0].findIndex((ticket) => ticket.id === id);
-  const body = ctx.request.body;
+  let ticketController;
+  const { method } = ctx.request;
+  let operation;
 
-  switch (method) {
+  console.log(method)
+
+  if (method === 'GET' || method === 'DELETE') {
+    operation = ctx.request.query.method;
+    ticketController = new TicketController(ctx.request.query);
+  } else if (method === 'POST' || method === 'PATCH') {
+    operation = ctx.request.body.method;
+    ticketController = new TicketController(ctx.request.body);
+    console.log(operation)
+    console.log(JSON.stringify(ticketController))
+  } else {
+    ctx.response.body = `Error! Unknown method '${method}' in request parameters.`;
+    ctx.response.status = 404;
+    return;
+  }
+
+  let response;
+
+  switch (operation) {
     case 'allTickets':
-      ctx.response.body = JSON.stringify(
-        tickets[0]
-      );
-      ctx.response.status = 200;
-      return;
+      ctx.response = ticketController.constructor.getTickets();
+      break;
     case 'allFullTickets':
-      ctx.response.body = JSON.stringify(
-        tickets[1]
-      );
-      ctx.response.status = 200;
-      return;
+      response = ticketController.constructor.getFullTickets();
+      ctx.response.body = response.body;
+      ctx.response.status = response.status;
+      break;
     case 'ticketById':
-      const foundTicket = tickets[1].find((ticket) => ticket.id === id);
-      ctx.assert(foundTicket, 410, 'Ticket not found!');
-      ctx.response.body = JSON.stringify(foundTicket);
-      ctx.response.status = 200;
-      return;
+      response = ticketController.getTicketFull(ctx.request.query);
+      ctx.response.body = response.body;
+      ctx.response.status = response.status;
+      break;
     case 'createTicket':
-      const creationParameters = ['name', 'description', 'status'];
-      creationParameters.forEach((parameter) => {
-        ctx.assert(body[parameter], 400, `Parameter ${parameter} not found!`);
-      });
-      body.id = `ticket${uuid.v1()}`;
-      body.created = getFormattedDate();
-      tickets[0].push(new Ticket(body));
-      tickets[1].push(new TicketFull(body));
-      ctx.response.body = JSON.stringify(body);
-      ctx.response.status = 200;
-      return;
+      response = ticketController.createTicket(ctx.request.body);
+      ctx.response.body = response.body;
+      ctx.response.status = response.status;
+      break;
     case 'deleteTicket':
-      if (ticketIndex === -1) {
-        ctx.throw(410, 'Id not found!');
-      }
-      tickets[0].splice(ticketIndex, 1);
-      tickets[1].splice(ticketIndex, 1);
-      ctx.response.status = 204;
-      return;
-    case 'editTicket':
-      if (ticketIndex === -1) {
-        ctx.throw(410, 'Id not found!');
-      }
-      if (!body.name || !body.name.trim()) {
-        delete body.name;
-      }
-      if (!body.description || !body.description.trim()) {
-        delete body.description;
-      }
-      tickets[0][ticketIndex] = {
-        ...tickets[0][ticketIndex],
-        ...ctx.request.body,
-      }
-      tickets[1][ticketIndex] = {
-        ...tickets[1][ticketIndex],
-        ...ctx.request.body,
-      }
-      if (Object.keys(body).length) {
-        ctx.response.body = JSON.stringify(body);
-      }
-      ctx.response.status = 200;
-      return;
+      response = ticketController.deleteTicket(ctx.request.body);
+      ctx.response.status = response.status;
+      break;
+    case 'changeTicket':
+      response = ticketController.changeTicket(ctx.request.body);
+      ctx.response.body = response.body;
+      ctx.response.status = response.status;
+      break;
     default:
+      ctx.response.body = `Unknown operation '${operation}' in a query`;
       ctx.response.status = 404;
-      return;
   }
 });
 

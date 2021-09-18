@@ -1,6 +1,6 @@
 # Домашнее задание №1 к лекции «Работа с HTTP»
 
-Ссылка на Heroku: https://help-desk-backend-2021.herokuapp.com/
+[Ссылка на Heroku](https://help-desk-backend-2021.herokuapp.com/)
 
 ## HelpDesk
 
